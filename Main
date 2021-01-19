@@ -1,0 +1,71 @@
+import smtplib
+from urllib.request import urlopen as uReq
+from bs4 import BeautifulSoup as soup
+
+# The target URL to be scraped.
+my_url = 'https://www.newegg.ca/todays-deals'
+
+# Opening the connection and reading the contents to a variable.
+uClient = uReq(my_url)
+page_html = uClient.read()
+uClient.close()
+
+# HTML Parsing
+page_soup = soup(page_html, 'html.parser')
+
+# Grabs all the daily deals as they are all classified "under item-cell".
+deals = page_soup.findAll("div", {'class': "item-cell"})
+
+# I decided to scrape all the data I needed into lists for simplicity.
+deals_names = []
+deals_price_before = []
+deals_price_current = []
+deals_save = []
+deals_shipping = []
+deals_link = []
+
+# The loop that will iterate through each deal found on the URL.
+# Some data is grabbed differently because of the way they are sorted in the HTML.
+for deal in deals:
+
+    deals_names.append(deal.img["title"])
+    deals_price_before.append(deal.findAll("span", {"class": "price-was-data"})[0].text)
+    deals_price_current.append(deal.strong.text)
+
+# Savings are listed as either a dollar saving or percentage saving. These are also classified differently in the HTML so I grab them differently.
+    if deal.findAll("span", {"class" : "price-save-percent"})[0].text == "":
+        deals_save.append(deal.findAll("span", {"class": "price-save-dollar"})[0].text)
+    else:
+        deals_save.append(deal.findAll("span", {"class": "price-save-percent"})[0].text)
+
+# If the shipping is not listed (which occurs for some deals) it is implied to be free with some restrictions, so I implement that here.
+    if deal.findAll("li", {"class": "price-ship"})[0].text == "":
+        deals_shipping.append("Free Shipping but check website for restrictions")
+    else:
+        deals_shipping.append(deal.findAll("li", {"class": "price-ship"})[0].text)
+
+
+    deals_link.append(deal.a["href"])
+
+# I now create the function that will send the email will all the info.
+def send_email():
+
+    sender_email = "theskilledraven@gmail.com" # Throwaway email.
+    rec_email = "pparthav@gmail.com"
+    server = smtplib.SMTP("smtp.gmail.com", 587)
+    server.starttls()
+    server.login(sender_email, "29079820166040") #Login info here, the password is just random numbers.
+
+    message = ""
+    for i in range(len(deals)):
+
+        # I Craft a message here with a loop to go through all the lists of information.
+        message += (deals_names[i] + " is on sale for $" + deals_price_current[i] + "\n")
+        message += ("Old price was: " + deals_price_before[i])
+        message += (" so you are saving: " + deals_save[i] + "\n")
+        message += (deals_shipping[i] + "\n")
+        message += (deals_link[i] + "\n" + "\n" + "\n")
+
+    server.sendmail(sender_email, rec_email, message)
+
+send_email() #Send the mail.
